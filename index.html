@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ANGORA SMC PRO — BingX Futures</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#090d14;color:#e9eef7;font-family:Inter,system-ui,-apple-system,Segoe UI,Arial,sans-serif}.top{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid #1d2633;background:#0d131d;position:sticky;top:0;z-index:3}.brand{font-weight:900;font-size:22px}.sub{color:#8290a3;font-size:12px;margin-top:4px}.status{font-size:12px;color:#9eabbc;display:flex;gap:7px;align-items:center}.status span:first-child{width:9px;height:9px;border-radius:50%;background:#e1a62b;display:inline-block}.toolbar{display:flex;gap:10px;flex-wrap:wrap;padding:14px 22px;border-bottom:1px solid #18212d;background:#0b1119}.toolbar label{font-size:11px;color:#8f9bad;display:flex;gap:6px;align-items:center}.toolbar select,.toolbar input,.toolbar button{background:#111925;border:1px solid #263244;color:#e7edf6;border-radius:8px;padding:8px 10px}.toolbar button{cursor:pointer}.toolbar button:hover{border-color:#53647d}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:18px 22px}.card{background:#101722;border:1px solid #202b39;border-radius:12px;padding:14px}.card b{font-size:23px;display:block}.card span{font-size:11px;color:#8290a3}.hot{border-color:#5b3c17}.panel{margin:0 22px 16px;background:#0e151f;border:1px solid #1f2a38;border-radius:12px;overflow:hidden}.panel-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #1b2532}.panel-head h2{font-size:14px;margin:0}.panel-head span{font-size:11px;color:#748195}.signals{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;padding:12px}.signal{background:#111a26;border:1px solid #273345;border-radius:10px;padding:13px}.signal.long{border-left:3px solid #2dbf79}.signal.short{border-left:3px solid #ef5b68}.sigtop{display:flex;justify-content:space-between}.pair{font-weight:800}.badge{font-size:10px;padding:4px 7px;border-radius:999px;background:#222d3d}.long .badge{color:#54d596}.short .badge{color:#ff808a}.levels{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:12px}.levels div{background:#0b1119;border-radius:7px;padding:7px}.levels small{display:block;color:#718096;font-size:9px}.levels b{font-size:11px}.reason{font-size:11px;color:#9ba8b8;line-height:1.5;margin-top:10px}.score{margin-top:9px;font-size:11px}.rr{font-weight:800}.high{color:#ffbf4d}.empty{padding:30px;text-align:center;color:#738094;font-size:12px}.watchlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:7px;padding:12px}.coin{display:flex;justify-content:space-between;padding:9px;background:#101823;border:1px solid #202c3a;border-radius:8px;font-size:11px}.coin span{color:#7d8a9c}.coin.signal{border-color:#43536b}footer{text-align:center;color:#596779;font-size:10px;padding:20px} @media(max-width:650px){.top{padding:14px}.stats{grid-template-columns:repeat(2,1fr);padding:12px}.panel{margin:0 12px 12px}.toolbar{padding:10px 12px}.levels{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div>
+    <div class="brand">👑 ANGORA SMC PRO</div>
+    <div class="sub">BingX USDT-M Perpetual Futures • BTC + Altcoin Scanner</div>
+  </div>
+  <div class="status"><span id="dot"></span><span id="status">Bağlanıyor...</span></div>
+</header>
+
+<section class="toolbar">
+  <label>Zaman Dilimi
+    <select id="tf">
+      <option value="1m">1m</option><option value="5m">5m</option><option value="15m" selected>15m</option>
+      <option value="30m">30m</option><option value="1h">1h</option><option value="4h">4h</option>
+    </select>
+  </label>
+  <label>Minimum RR
+    <input id="minrr" type="number" value="3" min="1" step=".5">
+  </label>
+  <label>Minimum Skor
+    <input id="minscore" type="number" value="5" min="1" max="9">
+  </label>
+  <button id="scan">↻ Yenile</button>
+  <button id="notify">🔔 Bildirim</button>
+</section>
+
+<main>
+  <section class="stats">
+    <div class="card"><b id="pairCount">0</b><span>Futures</span></div>
+    <div class="card"><b id="longs">0</b><span>LONG</span></div>
+    <div class="card"><b id="shorts">0</b><span>SHORT</span></div>
+    <div class="card hot"><b id="highrr">0</b><span>🔥 HIGH RR</span></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Sinyaller</h2><span id="updated">—</span></div>
+    <div id="signals" class="signals">
+      <div class="empty">BingX Futures verileri bekleniyor...</div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Tarama</h2><span id="scanInfo">—</span></div>
+    <div id="watchlist" class="watchlist"></div>
+  </section>
+</main>
+
+<footer>ANGORA SMC PRO • Teknik tarama aracıdır; yatırım tavsiyesi değildir.</footer>
+<script>
+const API='https://open-api.bingx.com/openApi/swap/v2';
+const WS='wss://open-api-swap.bingx.com/swap-market';
+let tf='15m', minRR=3, minScore=5, contracts=[], data=new Map(), ws=null, notified=new Set();
+
+const $=id=>document.getElementById(id);
+function setStatus(t,on=true){$('status').textContent=t;$('dot').style.background=on?'#39c982':'#e1a62b'}
+function fmt(n){if(!Number.isFinite(n))return '—'; if(Math.abs(n)>=1000)return n.toLocaleString('en-US',{maximumFractionDigits:2}); if(Math.abs(n)>=1)return n.toFixed(4); return n.toPrecision(5)}
+function intervalMs(x){return ({'1m':60000,'5m':300000,'15m':900000,'30m':1800000,'1h':3600000,'4h':14400000})[x]||900000}
+
+async function getJSON(path){
+  const r=await fetch(API+path,{cache:'no-store'});
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  return r.json();
+}
+async function loadContracts(){
+  const j=await getJSON('/quote/contracts');
+  const arr=j.data||[];
+  contracts=arr.filter(x=>{
+    const s=String(x.symbol||'').toUpperCase();
+    const state=String(x.status||'1').toLowerCase();
+    return s.endsWith('-USDT') && !/UP-USDT|DOWN-USDT|BULL-USDT|BEAR-USDT/.test(s) &&
+      !/USDC|USDE/.test(s) && !/^(USDT|USDC)-/.test(s) &&
+      !['0','offline','closed'].includes(state);
+  });
+  // BTC first, then alphabetical
+  contracts.sort((a,b)=>a.symbol==='BTC-USDT'?-1:b.symbol==='BTC-USDT'?1:String(a.symbol).localeCompare(String(b.symbol)));
+  $('pairCount').textContent=contracts.length;
+  $('scanInfo').textContent=contracts.length+' sözleşme';
+}
+function closesFromKline(j){
+  const a=j.data||[];
+  return a.map(x=>{
+    if(Array.isArray(x)) return {t:+x[0],o:+x[1],h:+x[2],l:+x[3],c:+x[4],v:+x[5]};
+    return {t:+(x.time||x.t),o:+x.open,h:+x.high,l:+x.low,c:+x.close,v:+(x.volume||0)};
+  }).filter(x=>Number.isFinite(x.c));
+}
+async function loadKlines(symbol){
+  const j=await getJSON('/quote/klines?symbol='+encodeURIComponent(symbol)+'&interval='+tf+'&limit=150');
+  const a=closesFromKline(j);
+  data.set(symbol,a);
+}
+function ema(a,n){let k=2/(n+1),e=a[0]?.c||0; for(let i=1;i<a.length;i++)e=a[i].c*k+e*(1-k); return e}
+function atr(a,n=14){if(a.length<n+1)return 0;let tr=[];for(let i=1;i<a.length;i++)tr.push(Math.max(a[i].h-a[i].l,Math.abs(a[i].h-a[i-1].c),Math.abs(a[i].l-a[i-1].c)));return tr.slice(-n).reduce((x,y)=>x+y,0)/Math.min(n,tr.length)}
+function pivots(a,n=3){let highs=[],lows=[];for(let i=n;i<a.length-n;i++){let hi=true,lo=true;for(let k=1;k<=n;k++){hi&=a[i].h>=a[i-k].h&&a[i].h>=a[i+k].h;lo&=a[i].l<=a[i-k].l&&a[i].l<=a[i+k].l}if(hi)highs.push(i);if(lo)lows.push(i)}return{highs,lows}}
+function analyze(symbol,a){
+  if(a.length<50)return null;
+  const last=a[a.length-1], prev=a[a.length-2], A=atr(a), e50=ema(a.slice(-60),50), p=pivots(a,3);
+  const hiIdx=p.highs.filter(i=>i<a.length-2).slice(-4), loIdx=p.lows.filter(i=>i<a.length-2).slice(-4);
+  const lastHi=hiIdx.length?a[hiIdx[hiIdx.length-1]].h:Math.max(...a.slice(-20).map(x=>x.h));
+  const lastLo=loIdx.length?a[loIdx[loIdx.length-1]].l:Math.min(...a.slice(-20).map(x=>x.l));
+  const bosUp=last.c>lastHi, bosDn=last.c<lastLo;
+  const sweepLow=prev.l<lastLo&&last.c>lastLo, sweepHigh=prev.h>lastHi&&last.c<lastHi;
+  const body=Math.abs(last.c-last.o), displacement=body>A*1.1;
+  const bullFvg=a.length>3&&a[a.length-3].h<a[a.length-1].l;
+  const bearFvg=a.length>3&&a[a.length-3].l>a[a.length-1].h;
+  const bullOB=prev.c<prev.o&&last.c>last.o&&last.c>prev.h;
+  const bearOB=prev.c>prev.o&&last.c<last.o&&last.c<prev.l;
+  const mid=(lastHi+lastLo)/2, premium=last.c>mid;
+  let L=0,S=0,reasonsL=[],reasonsS=[];
+  if(bosUp){L++;reasonsL.push('BOS ↑')}
+  if(bosDn){S++;reasonsS.push('BOS ↓')}
+  if(sweepLow){L++;reasonsL.push('sell-side liquidity sweep')}
+  if(sweepHigh){S++;reasonsS.push('buy-side liquidity sweep')}
+  if(displacement){L++;S++;reasonsL.push('displacement');reasonsS.push('displacement')}
+  if(bullFvg){L++;reasonsL.push('bullish FVG')}
+  if(bearFvg){S++;reasonsS.push('bearish FVG')}
+  if(bullOB){L++;reasonsL.push('bullish OB')}
+  if(bearOB){S++;reasonsS.push('bearish OB')}
+  if(last.c>e50){L++;reasonsL.push('HTF EMA bias')}
+  if(last.c<e50){S++;reasonsS.push('HTF EMA bias')}
+  if(!premium){L++;reasonsL.push('discount')}
+  if(premium){S++;reasonsS.push('premium')}
+  let side=L>=S&&L>=minScore?'LONG':S>L&&S>=minScore?'SHORT':null;
+  if(!side)return null;
+  const entry=last.c, sl=side==='LONG'?Math.min(lastLo,entry-A*1.25):Math.max(lastHi,entry+A*1.25);
+  const risk=Math.abs(entry-sl); if(!risk)return null;
+  const tp1=side==='LONG'?entry+risk*2:entry-risk*2, tp2=side==='LONG'?entry+risk*3:entry-risk*3, tp3=side==='LONG'?entry+risk*5:entry-risk*5;
+  const rr=5, score=side==='LONG'?L:S;
+  return {symbol,side,entry,sl,tp1,tp2,tp3,rr,score,reasons:side==='LONG'?reasonsL:reasonsS,high:rr>=minRR};
+}
+function render(){
+  const out=[];
+  for(const [s,a] of data){const x=analyze(s,a);if(x)out.push(x)}
+  out.sort((a,b)=>b.rr-a.rr||b.score-a.score);
+  $('longs').textContent=out.filter(x=>x.side==='LONG').length;
+  $('shorts').textContent=out.filter(x=>x.side==='SHORT').length;
+  $('highrr').textContent=out.filter(x=>x.high).length;
+  $('updated').textContent=new Date().toLocaleTimeString('tr-TR');
+  $('signals').innerHTML=out.length?out.slice(0,60).map(x=>`<article class="signal ${x.side.toLowerCase()}">
+    <div class="sigtop"><span class="pair">${x.symbol}</span><span class="badge">${x.side} • ${x.score}/9</span></div>
+    <div class="levels">
+      <div><small>ENTRY</small><b>${fmt(x.entry)}</b></div>
+      <div><small>SL</small><b>${fmt(x.sl)}</b></div>
+      <div><small>TP1</small><b>${fmt(x.tp1)}</b></div>
+      <div><small>TP3</small><b>${fmt(x.tp3)}</b></div>
+    </div>
+    <div class="reason">Neden: ${x.reasons.join(' • ')}</div>
+    <div class="score"><span class="rr">RR 1:${x.rr}</span> ${x.high?'<span class="high">🔥 HIGH RR</span>':''}</div>
+  </article>`).join(''):'<div class="empty">Şu anda kriterleri geçen sinyal yok.</div>';
+  $('watchlist').innerHTML=contracts.slice(0,120).map(c=>`<div class="coin"><b>${c.symbol}</b><span>${c.contractType||'PERPETUAL'}</span></div>`).join('');
+  for(const x of out.filter(x=>x.high).slice(0,10)){
+    const key=x.symbol+x.side+Math.round(x.entry*100000);
+    if(!notified.has(key)&&Notification.permission==='granted'){new Notification('ANGORA 🔥 HIGH RR',{body:`${x.symbol} ${x.side} • RR 1:${x.rr}`});notified.add(key)}
+  }
+}
+async function scan(){
+  setStatus('Taranıyor...',true);
+  try{
+    await loadContracts();
+    // İlk açılışta tüm piyasayı yüklemek yerine BTC + ilk 80 altcoin.
+    const list=contracts.slice(0,81);
+    await Promise.allSettled(list.map(c=>loadKlines(c.symbol)));
+    render(); setStatus('Canlı',true);
+    connectWS(list.map(c=>c.symbol));
+  }catch(e){console.error(e);setStatus('Bağlantı hatası',false)}
+}
+function connectWS(symbols){
+  if(ws)try{ws.close()}catch{}
+  ws=new WebSocket(WS);
+  ws.onopen=()=>{
+    setStatus('WebSocket canlı',true);
+    const batches=[];for(let i=0;i<symbols.length;i+=30)batches.push(symbols.slice(i,i+30));
+    batches.forEach((batch,k)=>setTimeout(()=>ws.send(JSON.stringify({id:Date.now()+k,reqType:'sub',dataType:'Kline',data:batch.map(s=>({symbol:s,interval:tf}))})),k*250));
+  };
+  ws.onmessage=e=>{
+    try{
+      const m=JSON.parse(e.data);
+      const d=m.data||m;
+      if(!d)return;
+      const symbol=d.symbol||d.s;
+      const k=d.kline||d;
+      if(!symbol||k.close===undefined)return;
+      let a=data.get(symbol)||[];
+      const item={t:+(k.time||k.t||Date.now()),o:+(k.open||k.o),h:+(k.high||k.h),l:+(k.low||k.l),c:+(k.close||k.c),v:+(k.volume||k.v||0)};
+      if(a.length&&a[a.length-1].t===item.t)a[a.length-1]=item;else a.push(item);
+      data.set(symbol,a.slice(-160));render();
+    }catch{}
+  };
+  ws.onclose=()=>{setStatus('Yeniden bağlanıyor...',false);setTimeout(()=>connectWS(symbols),2500)}
+  ws.onerror=()=>setStatus('WebSocket hatası',false);
+}
+$('tf').onchange=()=>{tf=$('tf').value;scan()}
+$('minrr').onchange=()=>{minRR=+$('minrr').value||3;render()}
+$('minscore').onchange=()=>{minScore=+$('minscore').value||5;render()}
+$('scan').onclick=scan;
+$('notify').onclick=async()=>{if('Notification'in window){let p=await Notification.requestPermission();$('notify').textContent=p==='granted'?'🔔 Açık':'🔕 Kapalı'}};
+scan();
+</script>
+</body>
+</html>
